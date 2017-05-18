@@ -6,7 +6,7 @@ from os import getcwd, chdir
 from . import style, mapnik, MAPNIK_VERSION
 
 def safe_str(s):
-    return None if not s else unicode(s).encode('utf-8')
+    return None if not s else str(s).encode('utf-8')
 
 def fontset_name(face_names):
     return '-'.join([sub(r'\W', '_', name) for name in face_names])
@@ -18,7 +18,7 @@ class OutputException(Exception):
 
 class Map:
     def __init__(self, srs=None, layers=None, background=None):
-        assert srs is None or isinstance(srs, basestring)
+        assert srs is None or isinstance(srs, str)
         assert layers is None or type(layers) in (list, tuple)
         assert background is None or background.__class__ is style.color or background == 'transparent'
         
@@ -54,7 +54,7 @@ class Map:
                         sty.filter_mode = mapnik.filter_mode.FIRST
                     
                     for rule in style.rules:
-                        rul = mapnik.Rule('rule %d' % ids.next())
+                        rul = mapnik.Rule('rule %d' % next(ids))
                         rul.filter = rule.filter and mapnik.Filter(rule.filter.text) or rul.filter
                         rul.min_scale = rule.minscale and rule.minscale.value or rul.min_scale
                         rul.max_scale = rule.maxscale and rule.maxscale.value or rul.max_scale
@@ -127,9 +127,9 @@ class Rule:
 
 class Layer:
     def __init__(self, name, datasource, styles=None, srs=None, minzoom=None, maxzoom=None):
-        assert isinstance(name, basestring)
+        assert isinstance(name, str)
         assert styles is None or type(styles) in (list, tuple)
-        assert srs is None or isinstance(srs, basestring)
+        assert srs is None or isinstance(srs, str)
         assert minzoom is None or type(minzoom) in (int, float)
         assert maxzoom is None or type(maxzoom) in (int, float)
         
@@ -146,8 +146,8 @@ class Layer:
 class Datasource:
     def __init__(self, **parameters):
         self.parameters = {}
-        for param, value in parameters.items():
-            if isinstance(value, basestring):
+        for param, value in list(parameters.items()):
+            if isinstance(value, str):
                 value = safe_str(value)
             self.parameters[param] = value
 
@@ -200,8 +200,8 @@ class PolygonSymbolizer:
 class RasterSymbolizer:
     def __init__(self, mode=None, opacity=None, scaling=None):
         assert opacity is None or type(opacity) in (int, float)
-        assert mode is None or isinstance(mode, basestring)
-        assert scaling is None or isinstance(scaling, basestring)
+        assert mode is None or isinstance(mode, str)
+        assert scaling is None or isinstance(scaling, str)
 
         self.mode = safe_str(mode)
         self.opacity = opacity or 1.0
@@ -223,8 +223,8 @@ class LineSymbolizer:
         assert color.__class__ is style.color
         assert type(width) in (int, float)
         assert opacity is None or type(opacity) in (int, float)
-        assert join is None or isinstance(join, basestring)
-        assert cap is None or isinstance(cap, basestring)
+        assert join is None or isinstance(join, str)
+        assert cap is None or isinstance(cap, str)
         assert dashes is None or dashes.__class__ is style.numbers
 
         self.color = color
@@ -285,9 +285,9 @@ class TextSymbolizer:
         anchor_dx=None, anchor_dy=None,horizontal_alignment=None,vertical_alignment=None,
         justify_alignment=None):
 
-        assert isinstance(name, basestring)
+        assert isinstance(name, str)
         assert face_name is None or face_name.__class__ is style.strings
-        assert fontset is None or isinstance(fontset, basestring)
+        assert fontset is None or isinstance(fontset, str)
         assert type(size) is int
         assert color.__class__ is style.color
         assert wrap_width is None or type(wrap_width) is int
@@ -303,8 +303,8 @@ class TextSymbolizer:
         assert avoid_edges is None or avoid_edges.__class__ is style.boolean
         assert minimum_distance is None or type(minimum_distance) is int
         assert allow_overlap is None or allow_overlap.__class__ is style.boolean
-        assert label_placement is None or isinstance(label_placement, basestring)
-        assert text_transform is None or isinstance(text_transform, basestring)
+        assert label_placement is None or isinstance(label_placement, str)
+        assert text_transform is None or isinstance(text_transform, str)
 
         assert face_name or fontset, "Must specify either face_name or fontset"
 
@@ -480,9 +480,9 @@ class ShieldSymbolizer:
         
         assert (face_name or fontset) and file
         
-        assert isinstance(name, basestring)
+        assert isinstance(name, str)
         assert face_name is None or face_name.__class__ is style.strings
-        assert fontset is None or isinstance(fontset, basestring)
+        assert fontset is None or isinstance(fontset, str)
         assert size is None or type(size) is int
         assert width is None or type(width) is int
         assert height is None or type(height) is int
@@ -573,8 +573,8 @@ class ShieldSymbolizer:
 
 class BasePointSymbolizer(object):
     def __init__(self, file, filetype, width, height):
-        assert isinstance(file, basestring)
-        assert isinstance(filetype, basestring)
+        assert isinstance(file, str)
+        assert isinstance(filetype, str)
         assert type(width) is int
         assert type(height) is int
 

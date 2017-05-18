@@ -72,7 +72,7 @@ def parse_attribute(tokens, is_merc):
         """ Look for a scalar value just after an attribute selector operator.
         """
         while True:
-            tname, tvalue, line, col = tokens.next()
+            tname, tvalue, line, col = next(tokens)
             if tname == 'NUMBER':
                 try:
                     value = int(tvalue)
@@ -80,7 +80,7 @@ def parse_attribute(tokens, is_merc):
                     value = float(tvalue)
                 return value
             elif (tname, tvalue) == ('CHAR', '-'):
-                tname, tvalue, line, col = tokens.next()
+                tname, tvalue, line, col = next(tokens)
                 if tname == 'NUMBER':
                     try:
                         value = int(tvalue)
@@ -103,7 +103,7 @@ def parse_attribute(tokens, is_merc):
         """ Look for the end of an attribute selector operator.
         """
         while True:
-            tname, tvalue, line, col = tokens.next()
+            tname, tvalue, line, col = next(tokens)
             if (tname, tvalue) == ('CHAR', ']'):
                 return
             elif tname != 'S':
@@ -114,16 +114,16 @@ def parse_attribute(tokens, is_merc):
     #
     
     while True:
-        tname, tvalue, line, col = tokens.next()
+        tname, tvalue, line, col = next(tokens)
         
         if tname == 'IDENT':
             property = tvalue
             
             while True:
-                tname, tvalue, line, col = tokens.next()
+                tname, tvalue, line, col = next(tokens)
                 
                 if (tname, tvalue) in [('CHAR', '<'), ('CHAR', '>')]:
-                    _tname, _tvalue, line, col = tokens.next()
+                    _tname, _tvalue, line, col = next(tokens)
         
                     if (_tname, _tvalue) == ('CHAR', '='):
                         #
@@ -144,7 +144,7 @@ def parse_attribute(tokens, is_merc):
                         return SelectorAttributeTest(property, op, value)
                 
                 elif (tname, tvalue) == ('CHAR', '!'):
-                    _tname, _tvalue, line, col = tokens.next()
+                    _tname, _tvalue, line, col = next(tokens)
         
                     if (_tname, _tvalue) == ('CHAR', '='):
                         #
@@ -376,13 +376,13 @@ def parse_block(tokens, variables, selectors, is_merc):
         """
         value = []
         while True:
-            tname, tvalue, line, col = tokens.next()
+            tname, tvalue, line, col = next(tokens)
             if (tname, tvalue) == ('CHAR', '!'):
                 while True:
-                    tname, tvalue, line, col = tokens.next()
+                    tname, tvalue, line, col = next(tokens)
                     if (tname, tvalue) == ('IDENT', 'important'):
                         while True:
-                            tname, tvalue, line, col = tokens.next()
+                            tname, tvalue, line, col = next(tokens)
                             if (tname, tvalue) == ('CHAR', ';'):
                                 #
                                 # end of a high-importance value
@@ -434,10 +434,10 @@ def parse_block(tokens, variables, selectors, is_merc):
     property_values = []
     
     while True:
-        tname, tvalue, line, col = tokens.next()
+        tname, tvalue, line, col = next(tokens)
         
         if tname == 'IDENT':
-            _tname, _tvalue, _line, _col = tokens.next()
+            _tname, _tvalue, _line, _col = next(tokens)
             
             if (_tname, _tvalue) == ('CHAR', ':'):
                 #
@@ -450,7 +450,7 @@ def parse_block(tokens, variables, selectors, is_merc):
                 try:
                     property = Property(tvalue)
                     vtokens, importance = parse_value(tokens, variables)
-                except BlockTerminatedValue, e:
+                except BlockTerminatedValue as e:
                     vtokens, importance = e.tokens, e.important
                     tokens = chain([('CHAR', '}', e.line, e.col)], tokens)
 
@@ -543,13 +543,13 @@ def parse_rule(tokens, variables, neighbors, parents, is_merc):
         """ Look for variable value tokens after an @keyword, return an array.
         """
         while True:
-            tname, tvalue, line, col = tokens.next()
+            tname, tvalue, line, col = next(tokens)
             
             if (tname, tvalue) == ('CHAR', ':'):
                 vtokens = []
             
                 while True:
-                    tname, tvalue, line, col = tokens.next()
+                    tname, tvalue, line, col = next(tokens)
             
                     if (tname, tvalue) in (('CHAR', ';'), ('S', '\n')):
                         return vtokens
@@ -569,7 +569,7 @@ def parse_rule(tokens, variables, neighbors, parents, is_merc):
     elements = []
     
     while True:
-        tname, tvalue, line, col = tokens.next()
+        tname, tvalue, line, col = next(tokens)
         
         if tname == 'ATKEYWORD':
             #
@@ -612,7 +612,7 @@ def parse_rule(tokens, variables, neighbors, parents, is_merc):
         
         elif (tname, tvalue) == ('CHAR', '.'):
             while True:
-                tname, tvalue, line, col = tokens.next()
+                tname, tvalue, line, col = next(tokens)
                 
                 if tname == 'IDENT':
                     #
@@ -689,7 +689,7 @@ def parse_rule(tokens, variables, neighbors, parents, is_merc):
                         raise ParseException('At least one element must be present in selectors for Mapnik styles', line, col)
                     
                     elements = chain(parent.elements + neighbor.elements)
-                    selector = Selector(deepcopy(elements.next()))
+                    selector = Selector(deepcopy(next(elements)))
                     
                     for element in elements:
                         if element.__class__ is ConcatenatedElement:

@@ -1,9 +1,9 @@
 import os, sys
 import math
-import urllib
-import urllib2
+import urllib.request, urllib.parse, urllib.error
+import urllib.request, urllib.error, urllib.parse
 import tempfile
-import StringIO
+import io
 import operator
 import base64
 import posixpath
@@ -15,8 +15,9 @@ from hashlib import md5
 from datetime import datetime
 from time import strftime, localtime
 from re import sub, compile, MULTILINE
-from urlparse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin
 from operator import lt, le, eq, ge, gt
+from functools import reduce
 
 # os.path.relpath was added in Python 2.6
 def _relpath(path, start=posixpath.curdir):
@@ -33,13 +34,13 @@ def _relpath(path, start=posixpath.curdir):
 
 # timeout parameter to HTTPConnection was added in Python 2.6
 if sys.hexversion >= 0x020600F0:
-    from httplib import HTTPConnection, HTTPSConnection
+    from http.client import HTTPConnection, HTTPSConnection
 
 else:
     posixpath.relpath = _relpath
     
-    from httplib import HTTPConnection as _HTTPConnection
-    from httplib import HTTPSConnection as _HTTPSConnection
+    from http.client import HTTPConnection as _HTTPConnection
+    from http.client import HTTPSConnection as _HTTPSConnection
     import socket
     
     def HTTPConnection(host, port=None, strict=None, timeout=None):
@@ -270,22 +271,22 @@ class Filter:
         
         for test in self.tests:
             if test.op == '=':
-                if equals.has_key(test.property) and test.value != equals[test.property]:
+                if test.property in equals and test.value != equals[test.property]:
                     # we've already stated that this arg must equal something else
                     return False
                     
-                if nequals.has_key(test.property) and test.value in nequals[test.property]:
+                if test.property in nequals and test.value in nequals[test.property]:
                     # we've already stated that this arg must not equal its current value
                     return False
                     
                 equals[test.property] = test.value
         
             if test.op == '!=':
-                if equals.has_key(test.property) and test.value == equals[test.property]:
+                if test.property in equals and test.value == equals[test.property]:
                     # we've already stated that this arg must equal its current value
                     return False
                     
-                if not nequals.has_key(test.property):
+                if test.property not in nequals:
                     nequals[test.property] = set()
 
                 nequals[test.property].add(test.value)
@@ -314,7 +315,7 @@ class Filter:
         extras = []
 
         for (i, test) in enumerate(trimmed.tests):
-            if test.op == '!=' and equals.has_key(test.property) and equals[test.property] != test.value:
+            if test.op == '!=' and test.property in equals and equals[test.property] != test.value:
                 extras.append(i)
 
         while extras:
@@ -363,7 +364,7 @@ def test_ranges(tests):
     # from here on out, *order will matter*
     # it's expected that the breaks will be sorted from minimum to maximum,
     # with greater/lesser/equal operators accounted for.
-    repeated_breaks.sort(key=lambda (o, e): (e, opsort[o]))
+    repeated_breaks.sort(key=lambda o_e: (o_e[1], opsort[o_e[0]]))
     
     breaks = []
 
@@ -529,9 +530,9 @@ def selectors_tests(selectors, property=None):
     for selector in selectors:
         for test in selector.allTests():
             if property is None or test.property == property:
-                tests[unicode(test)] = test
+                tests[str(test)] = test
 
-    return tests.values()
+    return list(tests.values())
 
 def tests_filter_combinations(tests):
     """ Return a complete list of filter combinations for given list of tests
@@ -629,7 +630,7 @@ def extract_declarations(map_el, dirs, scale=1, user_styles=[]):
     #
     for stylesheet in user_styles:
         mss_href = urljoin(dirs.source.rstrip('/')+'/', stylesheet)
-        content = urllib.urlopen(mss_href).read().decode(DEFAULT_ENCODING)
+        content = urllib.request.urlopen(mss_href).read().decode(DEFAULT_ENCODING)
 
         styles.append((content, mss_href))
     
@@ -661,7 +662,7 @@ def fetch_embedded_or_remote_src(elem, dirs):
     if 'src' in elem.attrib:
         scheme, host, remote_path, p, q, f = urlparse(dirs.source)
         src_href = urljoin(dirs.source.rstrip('/')+'/', elem.attrib['src'])
-        return urllib.urlopen(src_href).read().decode(DEFAULT_ENCODING), src_href
+        return urllib.request.urlopen(src_href).read().decode(DEFAULT_ENCODING), src_href
 
     elif elem.text:
         return elem.text, dirs.source.rstrip('/')+'/'
@@ -697,7 +698,7 @@ def expand_source_declarations(map_el, dirs, local_conf):
     # add in base datasources
     for base_name in ds.templates:
         b = Element("Datasource", name=base_name)
-        for pname, pvalue in ds.sources[base_name]['parameters'].items():
+        for pname, pvalue in list(ds.sources[base_name]['parameters'].items()):
             p = Element("Parameter", name=pname)
             p.text = str(pvalue)
             b.append(p)
@@ -722,7 +723,7 @@ def expand_source_declarations(map_el, dirs, local_conf):
         if 'layer_srs' in dsrc:
             layer.attrib['srs'] = dsrc['layer_srs']
         
-        for pname, pvalue in dsrc['parameters'].items():
+        for pname, pvalue in list(dsrc['parameters'].items()):
             p = Element("Parameter", name=pname)
             p.text = pvalue
             b.append(p)
@@ -735,7 +736,7 @@ def test2str(test):
     """
     if type(test.value) in (int, float):
         value = str(test.value)
-    elif type(test.value) in (str, unicode):
+    elif type(test.value) in (str, str):
         value = "'%s'" % test.value
     else:
         raise Exception("test2str doesn't know what to do with a %s" % type(test.value))
@@ -850,15 +851,15 @@ def get_polygon_rules(declarations):
                     'polygon-gamma': 'gamma',
                     'polygon-meta-output': 'meta-output', 'polygon-meta-writer': 'meta-writer'}
 
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # a place to put rules
     rules = []
     
     for (filter, values) in filtered_property_declarations(declarations, property_names):
-        color = values.has_key('polygon-fill') and values['polygon-fill'].value
-        opacity = values.has_key('polygon-opacity') and values['polygon-opacity'].value or None
-        gamma = values.has_key('polygon-gamma') and values['polygon-gamma'].value or None
+        color = 'polygon-fill' in values and values['polygon-fill'].value
+        opacity = 'polygon-opacity' in values and values['polygon-opacity'].value or None
+        gamma = 'polygon-gamma' in values and values['polygon-gamma'].value or None
         symbolizer = color and output.PolygonSymbolizer(color, opacity, gamma)
         
         if symbolizer:
@@ -879,15 +880,15 @@ def get_raster_rules(declarations):
                     'raster-scaling': 'scaling'
                     }
 
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
 
     # a place to put rules
     rules = []
 
     for (filter, values) in filtered_property_declarations(declarations, property_names):
         sym_params = {}
-        for prop,attr in property_map.items():
-            sym_params[attr] = values.has_key(prop) and values[prop].value or None
+        for prop,attr in list(property_map.items()):
+            sym_params[attr] = prop in values and values[prop].value or None
         
         symbolizer = output.RasterSymbolizer(**sym_params)
 
@@ -911,7 +912,7 @@ def get_line_rules(declarations):
                     'line-meta-output': 'meta-output', 'line-meta-writer': 'meta-writer'}
 
 
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # prepend parameter names with 'in' and 'out'
     for i in range(len(property_names)):
@@ -923,35 +924,35 @@ def get_line_rules(declarations):
     
     for (filter, values) in filtered_property_declarations(declarations, property_names):
     
-        width = values.has_key('line-width') and values['line-width'].value
-        color = values.has_key('line-color') and values['line-color'].value
+        width = 'line-width' in values and values['line-width'].value
+        color = 'line-color' in values and values['line-color'].value
 
-        opacity = values.has_key('line-opacity') and values['line-opacity'].value or None
-        join = values.has_key('line-join') and values['line-join'].value or None
-        cap = values.has_key('line-cap') and values['line-cap'].value or None
-        dashes = values.has_key('line-dasharray') and values['line-dasharray'].value or None
+        opacity = 'line-opacity' in values and values['line-opacity'].value or None
+        join = 'line-join' in values and values['line-join'].value or None
+        cap = 'line-cap' in values and values['line-cap'].value or None
+        dashes = 'line-dasharray' in values and values['line-dasharray'].value or None
 
         line_symbolizer = color and width and output.LineSymbolizer(color, width, opacity, join, cap, dashes) or False
 
-        width = values.has_key('inline-width') and values['inline-width'].value
-        color = values.has_key('inline-color') and values['inline-color'].value
+        width = 'inline-width' in values and values['inline-width'].value
+        color = 'inline-color' in values and values['inline-color'].value
 
-        opacity = values.has_key('inline-opacity') and values['inline-opacity'].value or None
-        join = values.has_key('inline-join') and values['inline-join'].value or None
-        cap = values.has_key('inline-cap') and values['inline-cap'].value or None
-        dashes = values.has_key('inline-dasharray') and values['inline-dasharray'].value or None
+        opacity = 'inline-opacity' in values and values['inline-opacity'].value or None
+        join = 'inline-join' in values and values['inline-join'].value or None
+        cap = 'inline-cap' in values and values['inline-cap'].value or None
+        dashes = 'inline-dasharray' in values and values['inline-dasharray'].value or None
 
         inline_symbolizer = color and width and output.LineSymbolizer(color, width, opacity, join, cap, dashes) or False
 
         # outline requires regular line to have a meaningful width
-        width = values.has_key('outline-width') and values.has_key('line-width') \
+        width = 'outline-width' in values and 'line-width' in values \
             and values['line-width'].value + values['outline-width'].value * 2
-        color = values.has_key('outline-color') and values['outline-color'].value
+        color = 'outline-color' in values and values['outline-color'].value
 
-        opacity = values.has_key('outline-opacity') and values['outline-opacity'].value or None
-        join = values.has_key('outline-join') and values['outline-join'].value or None
-        cap = values.has_key('outline-cap') and values['outline-cap'].value or None
-        dashes = values.has_key('outline-dasharray') and values['outline-dasharray'].value or None
+        opacity = 'outline-opacity' in values and values['outline-opacity'].value or None
+        join = 'outline-join' in values and values['outline-join'].value or None
+        cap = 'outline-cap' in values and values['outline-cap'].value or None
+        dashes = 'outline-dasharray' in values and values['outline-dasharray'].value or None
 
         outline_symbolizer = color and width and output.LineSymbolizer(color, width, opacity, join, cap, dashes) or False
         
@@ -992,7 +993,7 @@ def get_text_rule_groups(declarations):
                     'text-meta-writer': 'meta-writer'
                     }
 
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # pull out all the names
     text_names = [dec.selector.elements[1].names[0]
@@ -1019,32 +1020,32 @@ def get_text_rule_groups(declarations):
         
         for (filter, values) in filtered_property_declarations(name_declarations, property_names):
             
-            face_name = values.has_key('text-face-name') and values['text-face-name'].value or None
-            fontset = values.has_key('text-fontset') and values['text-fontset'].value or None
-            size = values.has_key('text-size') and values['text-size'].value
-            color = values.has_key('text-fill') and values['text-fill'].value
+            face_name = 'text-face-name' in values and values['text-face-name'].value or None
+            fontset = 'text-fontset' in values and values['text-fontset'].value or None
+            size = 'text-size' in values and values['text-size'].value
+            color = 'text-fill' in values and values['text-fill'].value
             
-            ratio = values.has_key('text-ratio') and values['text-ratio'].value or None
-            wrap_width = values.has_key('text-wrap-width') and values['text-wrap-width'].value or None
-            label_spacing = values.has_key('text-spacing') and values['text-spacing'].value or None
-            label_position_tolerance = values.has_key('text-label-position-tolerance') and values['text-label-position-tolerance'].value or None
-            max_char_angle_delta = values.has_key('text-max-char-angle-delta') and values['text-max-char-angle-delta'].value or None
-            halo_color = values.has_key('text-halo-fill') and values['text-halo-fill'].value or None
-            halo_radius = values.has_key('text-halo-radius') and values['text-halo-radius'].value or None
-            dx = values.has_key('text-dx') and values['text-dx'].value or None
-            dy = values.has_key('text-dy') and values['text-dy'].value or None
-            avoid_edges = values.has_key('text-avoid-edges') and values['text-avoid-edges'].value or None
-            minimum_distance = values.has_key('text-min-distance') and values['text-min-distance'].value or None
-            allow_overlap = values.has_key('text-allow-overlap') and values['text-allow-overlap'].value or None
-            label_placement = values.has_key('text-placement') and values['text-placement'].value or None
-            text_transform = values.has_key('text-transform') and values['text-transform'].value or None
-            anchor_dx = values.has_key('text-anchor-dx') and values['text-anchor-dx'].value or None
-            anchor_dy = values.has_key('text-anchor-dy') and values['text-anchor-dy'].value or None
-            horizontal_alignment = values.has_key('text-horizontal-align') and values['text-horizontal-align'].value or None
-            vertical_alignment = values.has_key('text-vertical-align') and values['text-vertical-align'].value or None
-            justify_alignment = values.has_key('text-justify-align') and values['text-justify-align'].value or None
-            line_spacing = values.has_key('text-line-spacing') and values['text-line-spacing'].value or None
-            character_spacing = values.has_key('text-character-spacing') and values['text-character-spacing'].value or None
+            ratio = 'text-ratio' in values and values['text-ratio'].value or None
+            wrap_width = 'text-wrap-width' in values and values['text-wrap-width'].value or None
+            label_spacing = 'text-spacing' in values and values['text-spacing'].value or None
+            label_position_tolerance = 'text-label-position-tolerance' in values and values['text-label-position-tolerance'].value or None
+            max_char_angle_delta = 'text-max-char-angle-delta' in values and values['text-max-char-angle-delta'].value or None
+            halo_color = 'text-halo-fill' in values and values['text-halo-fill'].value or None
+            halo_radius = 'text-halo-radius' in values and values['text-halo-radius'].value or None
+            dx = 'text-dx' in values and values['text-dx'].value or None
+            dy = 'text-dy' in values and values['text-dy'].value or None
+            avoid_edges = 'text-avoid-edges' in values and values['text-avoid-edges'].value or None
+            minimum_distance = 'text-min-distance' in values and values['text-min-distance'].value or None
+            allow_overlap = 'text-allow-overlap' in values and values['text-allow-overlap'].value or None
+            label_placement = 'text-placement' in values and values['text-placement'].value or None
+            text_transform = 'text-transform' in values and values['text-transform'].value or None
+            anchor_dx = 'text-anchor-dx' in values and values['text-anchor-dx'].value or None
+            anchor_dy = 'text-anchor-dy' in values and values['text-anchor-dy'].value or None
+            horizontal_alignment = 'text-horizontal-align' in values and values['text-horizontal-align'].value or None
+            vertical_alignment = 'text-vertical-align' in values and values['text-vertical-align'].value or None
+            justify_alignment = 'text-justify-align' in values and values['text-justify-align'].value or None
+            line_spacing = 'text-line-spacing' in values and values['text-line-spacing'].value or None
+            character_spacing = 'text-character-spacing' in values and values['text-character-spacing'].value or None
             
             if (face_name or fontset) and size and color:
                 symbolizer = output.TextSymbolizer(text_name, face_name, size, color, \
@@ -1179,7 +1180,7 @@ def get_shield_rule_groups(declarations, dirs):
                     'shield-meta-output': 'meta-output', 'shield-meta-writer': 'meta-writer',
                     'shield-text-dx': 'dx', 'shield-text-dy': 'dy'}
 
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # pull out all the names
     text_names = [dec.selector.elements[1].names[0]
@@ -1206,27 +1207,27 @@ def get_shield_rule_groups(declarations, dirs):
         
         for (filter, values) in filtered_property_declarations(name_declarations, property_names):
         
-            face_name = values.has_key('shield-face-name') and values['shield-face-name'].value or None
-            fontset = values.has_key('shield-fontset') and values['shield-fontset'].value or None
-            size = values.has_key('shield-size') and values['shield-size'].value or None
+            face_name = 'shield-face-name' in values and values['shield-face-name'].value or None
+            fontset = 'shield-fontset' in values and values['shield-fontset'].value or None
+            size = 'shield-size' in values and values['shield-size'].value or None
             
             file, filetype, width, height \
-                = values.has_key('shield-file') \
+                = 'shield-file' in values \
                 and post_process_symbolizer_image_file(str(values['shield-file'].value), dirs) \
                 or (None, None, None, None)
             
-            width = values.has_key('shield-width') and values['shield-width'].value or width
-            height = values.has_key('shield-height') and values['shield-height'].value or height
+            width = 'shield-width' in values and values['shield-width'].value or width
+            height = 'shield-height' in values and values['shield-height'].value or height
             
-            color = values.has_key('shield-fill') and values['shield-fill'].value or None
-            minimum_distance = values.has_key('shield-min-distance') and values['shield-min-distance'].value or None
+            color = 'shield-fill' in values and values['shield-fill'].value or None
+            minimum_distance = 'shield-min-distance' in values and values['shield-min-distance'].value or None
             
-            character_spacing = values.has_key('shield-character-spacing') and values['shield-character-spacing'].value or None
-            line_spacing = values.has_key('shield-line-spacing') and values['shield-line-spacing'].value or None
-            label_spacing = values.has_key('shield-spacing') and values['shield-spacing'].value or None
+            character_spacing = 'shield-character-spacing' in values and values['shield-character-spacing'].value or None
+            line_spacing = 'shield-line-spacing' in values and values['shield-line-spacing'].value or None
+            label_spacing = 'shield-spacing' in values and values['shield-spacing'].value or None
             
-            text_dx = values.has_key('shield-text-dx') and values['shield-text-dx'].value or 0
-            text_dy = values.has_key('shield-text-dy') and values['shield-text-dy'].value or 0
+            text_dx = 'shield-text-dx' in values and values['shield-text-dx'].value or 0
+            text_dy = 'shield-text-dy' in values and values['shield-text-dy'].value or 0
             
             if file and (face_name or fontset):
                 symbolizer = output.ShieldSymbolizer(text_name, face_name, size, file, filetype, 
@@ -1250,20 +1251,20 @@ def get_point_rules(declarations, dirs):
                     'point-allow-overlap': 'allow_overlap',
                     'point-meta-output': 'meta-output', 'point-meta-writer': 'meta-writer'}
     
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # a place to put rules
     rules = []
     
     for (filter, values) in filtered_property_declarations(declarations, property_names):
         point_file, point_type, point_width, point_height \
-            = values.has_key('point-file') \
+            = 'point-file' in values \
             and post_process_symbolizer_image_file(str(values['point-file'].value), dirs) \
             or (None, None, None, None)
         
-        point_width = values.has_key('point-width') and values['point-width'].value or point_width
-        point_height = values.has_key('point-height') and values['point-height'].value or point_height
-        point_allow_overlap = values.has_key('point-allow-overlap') and values['point-allow-overlap'].value or None
+        point_width = 'point-width' in values and values['point-width'].value or point_width
+        point_height = 'point-height' in values and values['point-height'].value or point_height
+        point_allow_overlap = 'point-allow-overlap' in values and values['point-allow-overlap'].value or None
         
         symbolizer = point_file and output.PointSymbolizer(point_file, point_type, point_width, point_height, point_allow_overlap)
 
@@ -1282,7 +1283,7 @@ def get_polygon_pattern_rules(declarations, dirs):
                     'polygon-meta-output': 'meta-output', 'polygon-meta-writer': 'meta-writer'}
 
     
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # a place to put rules
     rules = []
@@ -1290,12 +1291,12 @@ def get_polygon_pattern_rules(declarations, dirs):
     for (filter, values) in filtered_property_declarations(declarations, property_names):
     
         poly_pattern_file, poly_pattern_type, poly_pattern_width, poly_pattern_height \
-            = values.has_key('polygon-pattern-file') \
+            = 'polygon-pattern-file' in values \
             and post_process_symbolizer_image_file(str(values['polygon-pattern-file'].value), dirs) \
             or (None, None, None, None)
         
-        poly_pattern_width = values.has_key('polygon-pattern-width') and values['polygon-pattern-width'].value or poly_pattern_width
-        poly_pattern_height = values.has_key('polygon-pattern-height') and values['polygon-pattern-height'].value or poly_pattern_height
+        poly_pattern_width = 'polygon-pattern-width' in values and values['polygon-pattern-width'].value or poly_pattern_width
+        poly_pattern_height = 'polygon-pattern-height' in values and values['polygon-pattern-height'].value or poly_pattern_height
         symbolizer = poly_pattern_file and output.PolygonPatternSymbolizer(poly_pattern_file, poly_pattern_type, poly_pattern_width, poly_pattern_height)
         
         if symbolizer:
@@ -1313,7 +1314,7 @@ def get_line_pattern_rules(declarations, dirs):
                     'line-pattern-meta-output': 'meta-output', 'line-pattern-meta-writer': 'meta-writer'}
 
     
-    property_names = property_map.keys()
+    property_names = list(property_map.keys())
     
     # a place to put rules
     rules = []
@@ -1321,12 +1322,12 @@ def get_line_pattern_rules(declarations, dirs):
     for (filter, values) in filtered_property_declarations(declarations, property_names):
     
         line_pattern_file, line_pattern_type, line_pattern_width, line_pattern_height \
-            = values.has_key('line-pattern-file') \
+            = 'line-pattern-file' in values \
             and post_process_symbolizer_image_file(str(values['line-pattern-file'].value), dirs) \
             or (None, None, None, None)
         
-        line_pattern_width = values.has_key('line-pattern-width') and values['line-pattern-width'].value or line_pattern_width
-        line_pattern_height = values.has_key('line-pattern-height') and values['line-pattern-height'].value or line_pattern_height
+        line_pattern_width = 'line-pattern-width' in values and values['line-pattern-width'].value or line_pattern_width
+        line_pattern_height = 'line-pattern-height' in values and values['line-pattern-height'].value or line_pattern_height
         symbolizer = line_pattern_file and output.LinePatternSymbolizer(line_pattern_file, line_pattern_type, line_pattern_width, line_pattern_height)
         
         if symbolizer:
@@ -1502,8 +1503,8 @@ def compile(src, dirs, verbose=False, srs=None, datasources_cfg=None, user_style
             if not (src[:7] in ('http://', 'https:/', 'file://')):
                 src = "file://" + src
             try:
-                doc = ElementTree.parse(urllib.urlopen(src))
-            except IOError, e:
+                doc = ElementTree.parse(urllib.request.urlopen(src))
+            except IOError as e:
                 raise IOError('%s: %s' % (e,src))
             map_el = doc.getroot()
 
@@ -1511,7 +1512,7 @@ def compile(src, dirs, verbose=False, srs=None, datasources_cfg=None, user_style
     declarations = extract_declarations(map_el, dirs, scale, user_styles)
     
     # a list of layers and a sequential ID generator
-    layers, ids = [], (i for i in xrange(1, 999999))
+    layers, ids = [], (i for i in range(1, 999999))
 
 
     # Handle base datasources
@@ -1574,29 +1575,29 @@ def compile(src, dirs, verbose=False, srs=None, datasources_cfg=None, user_style
         styles = []
         
         if datasource_params.get('type', None) == 'gdal':
-            styles.append(output.Style('raster style %d' % ids.next(),
+            styles.append(output.Style('raster style %d' % next(ids),
                                        get_raster_rules(layer_declarations)))
     
         else:
-            styles.append(output.Style('polygon style %d' % ids.next(),
+            styles.append(output.Style('polygon style %d' % next(ids),
                                        get_polygon_rules(layer_declarations)))
     
-            styles.append(output.Style('polygon pattern style %d' % ids.next(),
+            styles.append(output.Style('polygon pattern style %d' % next(ids),
                                        get_polygon_pattern_rules(layer_declarations, dirs)))
     
-            styles.append(output.Style('line style %d' % ids.next(),
+            styles.append(output.Style('line style %d' % next(ids),
                                        get_line_rules(layer_declarations)))
     
-            styles.append(output.Style('line pattern style %d' % ids.next(),
+            styles.append(output.Style('line pattern style %d' % next(ids),
                                        get_line_pattern_rules(layer_declarations, dirs)))
     
-            for (shield_name, shield_rules) in get_shield_rule_groups(layer_declarations, dirs).items():
-                styles.append(output.Style('shield style %d (%s)' % (ids.next(), shield_name), shield_rules))
+            for (shield_name, shield_rules) in list(get_shield_rule_groups(layer_declarations, dirs).items()):
+                styles.append(output.Style('shield style %d (%s)' % (next(ids), shield_name), shield_rules))
     
-            for (text_name, text_rules) in get_text_rule_groups(layer_declarations).items():
-                styles.append(output.Style('text style %d (%s)' % (ids.next(), text_name), text_rules))
+            for (text_name, text_rules) in list(get_text_rule_groups(layer_declarations).items()):
+                styles.append(output.Style('text style %d (%s)' % (next(ids), text_name), text_rules))
     
-            styles.append(output.Style('point style %d' % ids.next(),
+            styles.append(output.Style('point style %d' % next(ids),
                                        get_point_rules(layer_declarations, dirs)))
                                    
         styles = [s for s in styles if s.rules]
@@ -1604,7 +1605,7 @@ def compile(src, dirs, verbose=False, srs=None, datasources_cfg=None, user_style
         if styles:
             datasource = output.Datasource(**datasource_params)
             
-            layer = output.Layer('layer %d' % ids.next(),
+            layer = output.Layer('layer %d' % next(ids),
                                  datasource, styles,
                                  layer_el.get('srs', None),
                                  layer_el.get('min_zoom', None) and int(layer_el.get('min_zoom')) or None,

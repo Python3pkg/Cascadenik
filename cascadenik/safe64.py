@@ -14,7 +14,7 @@ def key(base):
 
 def chunk(url):
     """ create filesystem-safe places for url-keyed data to be stored """
-    chunks = lambda l, n: [l[x: x+n] for x in xrange(0, len(l), n)]
+    chunks = lambda l, n: [l[x: x+n] for x in range(0, len(l), n)]
     url_64 = base64.urlsafe_b64encode(url)
     return chunks(url_64, 255)
 

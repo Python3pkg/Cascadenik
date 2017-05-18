@@ -364,7 +364,7 @@ class Declaration:
         self.sort_key = sort_key
 
     def __repr__(self):
-        return u'%(selector)s { %(property)s: %(value)s }' % self.__dict__
+        return '%(selector)s { %(property)s: %(value)s }' % self.__dict__
     
     def scaleBy(self, scale):
         self.selector = self.selector.scaledBy(scale)
@@ -526,7 +526,7 @@ class Selector:
         return scaled
     
     def __repr__(self):
-        return u' '.join(repr(a) for a in self.elements)
+        return ' '.join(repr(a) for a in self.elements)
 
 class SelectorElement:
     """ One element in selector, with names and tests.
@@ -561,7 +561,7 @@ class SelectorElement:
         return len([n for n in self.names if n.startswith('.')])
     
     def __repr__(self):
-        return u''.join(self.names) + u''.join(repr(t) for t in self.tests)
+        return ''.join(self.names) + ''.join(repr(t) for t in self.tests)
 
 class ConcatenatedElement (SelectorElement):
     """
@@ -579,12 +579,12 @@ class SelectorAttributeTest:
         self.value = value
 
     def __repr__(self):
-        return u'[%(property)s%(op)s%(value)s]' % self.__dict__
+        return '[%(property)s%(op)s%(value)s]' % self.__dict__
 
     def __cmp__(self, other):
         """
         """
-        return cmp(unicode(self), unicode(other))
+        return cmp(str(self), str(other))
 
     def isSimple(self):
         """

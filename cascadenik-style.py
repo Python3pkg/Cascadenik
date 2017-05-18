@@ -17,23 +17,23 @@ def main(filename):
     declarations = cascadenik.stylesheet_declarations(input, is_merc=True)
     
     for dec in declarations:
-        print dec.selector,
-        print '{',
-        print dec.property.name+':',
+        print(dec.selector, end=' ')
+        print('{', end=' ')
+        print(dec.property.name+':', end=' ')
         
         if cascadenik.style.properties[dec.property.name] in (cascadenik.style.color, cascadenik.style.boolean, cascadenik.style.numbers):
-            print str(dec.value.value)+';',
+            print(str(dec.value.value)+';', end=' ')
         
         elif cascadenik.style.properties[dec.property.name] is cascadenik.style.uri:
-            print 'url("'+str(dec.value.value)+'");',
+            print('url("'+str(dec.value.value)+'");', end=' ')
         
         elif cascadenik.style.properties[dec.property.name] is str:
-            print '"'+str(dec.value.value)+'";',
+            print('"'+str(dec.value.value)+'";', end=' ')
         
         elif cascadenik.style.properties[dec.property.name] in (int, float) or type(cascadenik.style.properties[dec.property.name]) is tuple:
-            print str(dec.value.value)+';',
+            print(str(dec.value.value)+';', end=' ')
         
-        print '}'
+        print('}')
     
     return 0
 

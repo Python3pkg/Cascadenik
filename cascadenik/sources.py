@@ -1,7 +1,7 @@
-import ConfigParser
-import StringIO
-import urlparse
-import urllib
+import configparser
+import io
+import urllib.parse
+import urllib.request, urllib.parse, urllib.error
 
 from . import mapnik
 
@@ -15,15 +15,15 @@ class DataSources(object):
         self.finalized = False
         
         # avoid circular import
-        import compile
+        from . import compile
         self.msg = compile.msg     
         
         # if a local_cfg is provided, we want to get the defaults first, before reading any other
         # configuration.
         if local_cfg:
-            self.local_cfg_url = urlparse.urljoin(base, local_cfg)
+            self.local_cfg_url = urllib.parse.urljoin(base, local_cfg)
             self.msg("Using local datasource config: %s" % self.local_cfg_url)
-            self.set_local_cfg_data(urllib.urlopen(self.local_cfg_url).read().decode(compile.DEFAULT_ENCODING))
+            self.set_local_cfg_data(urllib.request.urlopen(self.local_cfg_url).read().decode(compile.DEFAULT_ENCODING))
             
     def set_local_cfg_data(self, data):
         self.local_cfg_data = data
@@ -76,7 +76,7 @@ class DataSources(object):
             if layer_srs:
                 try:
                     mapnik.Projection(str(layer_srs))
-                except Exception, e:
+                except Exception as e:
                     raise Exception("Section [%s] declares an invalid layer_srs (%s) in %s.\n\t%s" % (sect, layer_srs, filename, e))
                     
             if dtype:
@@ -85,7 +85,7 @@ class DataSources(object):
                 raise Exception("Section [%s] missing 'type' information in %s." % (sect, filename))
             
             # now populate the options for this type of source, looping over all the valid params
-            for option, option_type in self.XML_OPTIONS[dtype].items():
+            for option, option_type in list(self.XML_OPTIONS[dtype].items()):
                 opt_value = None
                 try:
                     if option_type == int:
@@ -96,9 +96,9 @@ class DataSources(object):
                         opt_value = parser.getboolean(sect,option)
                     else:
                         opt_value = parser.get(sect,option)
-                except ConfigParser.NoOptionError:
+                except configparser.NoOptionError:
                     pass
-                except ValueError, e:
+                except ValueError as e:
                     raise ValueError("Section [%s], field '%s' in file %s contains an invalid value: %s" % (sect, option, filename, e))
 
                 if opt_value is not None:
@@ -168,19 +168,19 @@ class DataSources(object):
                    }
 
     # add in global options
-    for v in XML_OPTIONS.values():
+    for v in list(XML_OPTIONS.values()):
         v.update(dict(type=str, estimate_extent=bool, extent=str))
 
-class OverrideConfigParser(ConfigParser.SafeConfigParser):
+class OverrideConfigParser(configparser.SafeConfigParser):
     def __init__(self, overrides):
-        ConfigParser.SafeConfigParser.__init__(self, overrides)
+        configparser.SafeConfigParser.__init__(self, overrides)
         self.overrides = overrides
 
     def loads(self, textdata):
-        data = StringIO.StringIO(textdata)
+        data = io.StringIO(textdata)
         data.seek(0)
         self.readfp(data)
 
     def get(self, section, option):
-        return ConfigParser.SafeConfigParser.get(self, section, option, vars=self.overrides)
+        return configparser.SafeConfigParser.get(self, section, option, vars=self.overrides)
     

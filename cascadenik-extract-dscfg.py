@@ -3,15 +3,15 @@
 import os, sys
 import math
 import pprint
-import urllib
-import urlparse
+import urllib.request, urllib.parse, urllib.error
+import urllib.parse
 import tempfile
-import StringIO
+import io
 import os.path
 import zipfile
 import itertools
 import re
-import ConfigParser
+import configparser
 import codecs
 import optparse
 
@@ -46,7 +46,7 @@ def add_source(sources, ds_name, params):
     op = sources[ds_name]
     c = 0
     while True:
-        for k,v in op.items():
+        for k,v in list(op.items()):
             # dicts are unequal
             if k not in params or op[k] != params[k]:
                 c += 1
@@ -61,17 +61,17 @@ def add_source(sources, ds_name, params):
 
 
 #
-class MyConfigParser(ConfigParser.RawConfigParser):
+class MyConfigParser(configparser.RawConfigParser):
     def write(self, fp):
         """Write an .ini-format representation of the configuration state."""
         if self._defaults:
-            fp.write("[%s]\n" % ConfigParser.DEFAULTSECT)
-            for (key, value) in sorted(self._defaults.items(), key=lambda x: x[0]):
+            fp.write("[%s]\n" % configparser.DEFAULTSECT)
+            for (key, value) in sorted(list(self._defaults.items()), key=lambda x: x[0]):
                 fp.write("%s = %s\n" % (key, str(value).replace('\n', '\n\t')))
             fp.write("\n")
         for section in sorted(self._sections):
             fp.write("[%s]\n" % section)
-            for (key, value) in sorted(self._sections[section].items(), key=lambda x: x[0]):
+            for (key, value) in sorted(list(self._sections[section].items()), key=lambda x: x[0]):
                 if key != "__name__":
                     fp.write("%s = %s\n" %
                              (key, str(value).replace('\n', '\n\t')))
@@ -90,13 +90,13 @@ def convert(src, outmml, outconfig, opts):
             src = 'file:%s' % src
 
     
-    doc = ElementTree.parse(urllib.urlopen(src))
+    doc = ElementTree.parse(urllib.request.urlopen(src))
     map = doc.getroot()
     
     defaults = standard_projections
     sources = {}
     
-    all_srs = dict([(v,k) for k,v in standard_projections.items()])
+    all_srs = dict([(v,k) for k,v in list(standard_projections.items())])
     
     name_filter = re.compile("\W")
     
@@ -137,7 +137,7 @@ def convert(src, outmml, outconfig, opts):
     # now generate unique bases
     g_params = {}
     
-    for name, params in sources.items():
+    for name, params in list(sources.items()):
         gp = {}
         name_base = None
         if params.get('type') == 'postgis':
@@ -163,9 +163,9 @@ def convert(src, outmml, outconfig, opts):
         
     config = MyConfigParser(defaults)     
     
-    for name,params in itertools.chain(g_params.values(), sources.items()):
+    for name,params in itertools.chain(list(g_params.values()), list(sources.items())):
         config.add_section(name)
-        for pn,pv in params.items():
+        for pn,pv in list(params.items()):
             if pn == 'table': pv = pv.strip()
             config.set(name,pn,pv)
     with codecs.open(outconfig,"w","utf-8") as oc:

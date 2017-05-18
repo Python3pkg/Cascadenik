@@ -8,8 +8,8 @@ Run as a module, like this:
 import os
 import sys
 import shutil
-import urllib
-import urlparse
+import urllib.request, urllib.parse, urllib.error
+import urllib.parse
 import os.path
 import unittest
 import tempfile
@@ -529,19 +529,19 @@ class SelectorParseTests(unittest.TestCase):
     def testFilters10(self):
         # Unicode is fine in filter values
         # Not so much in properties
-        s = u'''
+        s = '''
         Layer[name="Grüner Strich"] { polygon-fill: #000; }
         '''
         selectors = [dec.selector for dec in stylesheet_declarations(s)]
         filters = tests_filter_combinations(selectors_tests(selectors))
         
-        self.assertEqual(u"[name] = 'Grüner Strich'", test2str(filters[1].tests[0]))
-        self.assert_(isinstance(filters[1].tests[0].value, unicode))
+        self.assertEqual("[name] = 'Grüner Strich'", test2str(filters[1].tests[0]))
+        self.assert_(isinstance(filters[1].tests[0].value, str))
         self.assert_(isinstance(filters[1].tests[0].property, str))
 
     def testUnicode1(self):
         # Unicode is bad in property values
-        s = u'''
+        s = '''
         Layer CODE {
             text-face-name: "DejaVu Sans Book";
             text-size: 12; 
@@ -552,7 +552,7 @@ class SelectorParseTests(unittest.TestCase):
         declarations = stylesheet_declarations(s, is_merc=True)
         text_rule_groups = get_text_rule_groups(declarations)
         
-        self.assertEqual(str, type(text_rule_groups.keys()[0]))
+        self.assertEqual(str, type(list(text_rule_groups.keys())[0]))
         self.assert_(isinstance(text_rule_groups['CODE'][0].symbolizers[0].face_name, strings))
         self.assertEqual(str, type(text_rule_groups['CODE'][0].symbolizers[0].label_placement))
 
@@ -1778,7 +1778,7 @@ class StyleRuleTests(unittest.TestCase):
 class DataSourcesTests(unittest.TestCase):
 
     def gen_section(self, name, **kwargs):
-        return """[%s]\n%s\n""" % (name, "\n".join(("%s=%s" % kwarg for kwarg in kwargs.items())))
+        return """[%s]\n%s\n""" % (name, "\n".join(("%s=%s" % kwarg for kwarg in list(kwargs.items()))))
 
     def testSimple1(self):
         cdata = """
@@ -1884,7 +1884,7 @@ class CompileXMLTests(unittest.TestCase):
             path = os.path.join(self.data, name)
             
             file = open(path, 'w')
-            file.write(urllib.urlopen(href).read())
+            file.write(urllib.request.urlopen(href).read())
             file.close()
         
     def tearDown(self):
@@ -2241,7 +2241,7 @@ layer_srs=%(other_srs)s
         mapnik.save_map(mmap, os.path.join(self.tmpdir, 'out.mml'))
 
     def testCompile5(self):
-        s = u"""<?xml version="1.0" encoding="UTF-8" ?>
+        s = """<?xml version="1.0" encoding="UTF-8" ?>
             <Map>
                 <Stylesheet>
                     Layer[name="Grüner Strich"] { polygon-fill: #000; }
@@ -2262,7 +2262,7 @@ layer_srs=%(other_srs)s
 
 
     def testCompile6(self):
-        s = u"""
+        s = """
             Layer NAME
             {
                 text-anchor-dx: 10;
@@ -2398,7 +2398,7 @@ layer_srs=%(other_srs)s
         self.assertEqual(24, text_rule.symbolizers[0].size)
 
     def testCompile9(self):
-        s = u"""
+        s = """
             Layer NAME
             {
                 text-face-name: 'Helvetica', 'DejaVu Sans Book';
@@ -2529,10 +2529,10 @@ class RelativePathTests(unittest.TestCase):
                  'purple-point.png')
 
         for path in paths:
-            href = urlparse.urljoin('http://cascadenik-sampledata.s3.amazonaws.com', path)
+            href = urllib.parse.urljoin('http://cascadenik-sampledata.s3.amazonaws.com', path)
             path = os.path.join(self.tmpdir1, os.path.basename(path))
             file = open(path, 'w')
-            file.write(urllib.urlopen(href).read())
+            file.write(urllib.request.urlopen(href).read())
             file.close()
 
     def tearDown(self):
@@ -2547,7 +2547,7 @@ class RelativePathTests(unittest.TestCase):
         mml_path = dirs.output + '/style.mml'
         mml_file = open(mml_path, 'w')
         
-        print >> mml_file, """<?xml version="1.0" encoding="utf-8"?>
+        print("""<?xml version="1.0" encoding="utf-8"?>
             <Map srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null">
                 <Stylesheet>
                     Layer
@@ -2562,7 +2562,7 @@ class RelativePathTests(unittest.TestCase):
                     </Datasource>
                 </Layer>
             </Map>
-        """
+        """, file=mml_file)
         
         mml_file.close()
         
@@ -2583,7 +2583,7 @@ class RelativePathTests(unittest.TestCase):
         mml_path = dirs.output + '/style.mml'
         mml_file = open(mml_path, 'w')
         
-        print >> mml_file, """<?xml version="1.0" encoding="utf-8"?>
+        print("""<?xml version="1.0" encoding="utf-8"?>
             <Map srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null">
                 <Stylesheet>
                     Layer
@@ -2598,7 +2598,7 @@ class RelativePathTests(unittest.TestCase):
                     </Datasource>
                 </Layer>
             </Map>
-        """
+        """, file=mml_file)
         
         mml_file.close()
         
@@ -2619,7 +2619,7 @@ class RelativePathTests(unittest.TestCase):
         mml_path = dirs.output + '/style.mml'
         mml_file = open(mml_path, 'w')
         
-        print >> mml_file, """<?xml version="1.0" encoding="utf-8"?>
+        print("""<?xml version="1.0" encoding="utf-8"?>
             <Map srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null">
                 <Stylesheet>
                     Layer
@@ -2634,7 +2634,7 @@ class RelativePathTests(unittest.TestCase):
                     </Datasource>
                 </Layer>
             </Map>
-        """
+        """, file=mml_file)
         
         mml_file.close()
         
@@ -2655,7 +2655,7 @@ class RelativePathTests(unittest.TestCase):
         mml_path = dirs.output + '/style.mml'
         mml_file = open(mml_path, 'w')
         
-        print >> mml_file, """<?xml version="1.0" encoding="utf-8"?>
+        print("""<?xml version="1.0" encoding="utf-8"?>
             <Map srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null">
                 <Stylesheet>
                     Layer
@@ -2670,7 +2670,7 @@ class RelativePathTests(unittest.TestCase):
                     </Datasource>
                 </Layer>
             </Map>
-        """
+        """, file=mml_file)
         
         mml_file.close()
         
@@ -2691,7 +2691,7 @@ class RelativePathTests(unittest.TestCase):
         mml_path = dirs.output + '/style.mml'
         mml_file = open(mml_path, 'w')
         
-        print >> mml_file, """<?xml version="1.0" encoding="utf-8"?>
+        print("""<?xml version="1.0" encoding="utf-8"?>
             <Map srs="+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null">
                 <Stylesheet>
                     Layer
@@ -2706,7 +2706,7 @@ class RelativePathTests(unittest.TestCase):
                     </Datasource>
                 </Layer>
             </Map>
-        """ % (self.tmpdir1, self.tmpdir1)
+        """ % (self.tmpdir1, self.tmpdir1), file=mml_file)
         
         mml_file.close()
         

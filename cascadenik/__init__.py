@@ -10,7 +10,7 @@ __version__ = '2.6.6'
 
 from os import mkdir, chmod
 from os.path import isdir, realpath, expanduser, dirname, exists
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 # import mapnik
 try:
@@ -84,7 +84,7 @@ def load_map(map, src_file, output_dir, scale=1, cache_dir=None, datasources_cfg
         # only make the cache dir if it wasn't user-provided
         if not isdir(cache_dir):
             mkdir(cache_dir)
-            chmod(cache_dir, 0755)
+            chmod(cache_dir, 0o755)
 
     dirs = Directories(output_dir, realpath(cache_dir), dirname(src_file))
     compile(src_file, dirs, verbose, datasources_cfg=datasources_cfg, user_styles=user_styles, scale=scale).to_mapnik(map, dirs)

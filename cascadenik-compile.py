@@ -29,7 +29,7 @@ def main(src_file, dest_file, **kwargs):
     mmap = mapnik.Map(1, 1)
     # allow [zoom] filters to work
     mmap.srs = '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null'
-    load_kwargs = dict([(k, v) for (k, v) in kwargs.items() if k in ('cache_dir', 'scale', 'verbose', 'datasources_cfg', 'user_styles')])
+    load_kwargs = dict([(k, v) for (k, v) in list(kwargs.items()) if k in ('cache_dir', 'scale', 'verbose', 'datasources_cfg', 'user_styles')])
     cascadenik.load_map(mmap, src_file, dirname(realpath(dest_file)), **load_kwargs)
     
     (handle, tmp_file) = tempfile.mkstemp(suffix='.xml', prefix='cascadenik-mapnik-')
@@ -47,7 +47,7 @@ def main(src_file, dest_file, **kwargs):
     if os.path.exists(dest_file):
         os.unlink(dest_file)
 
-    os.chmod(tmp_file, 0666^os.umask(0))
+    os.chmod(tmp_file, 0o666^os.umask(0))
     shutil.move(tmp_file, dest_file)
     return 0
 
@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
     layersfile, outputfile = args[0:2]
     
-    print >> sys.stderr, 'output file:', outputfile, dirname(realpath(outputfile))
+    print('output file:', outputfile, dirname(realpath(outputfile)), file=sys.stderr)
 
     if not layersfile.endswith('.mml'):
         parser.error('Input must be an .mml file')
